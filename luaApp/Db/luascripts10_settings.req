@@ -1,0 +1,21 @@
+file script_settings.req P=$(P)$(R)userScript1
+file script_settings.req P=$(P)$(R)userScript2
+file script_settings.req P=$(P)$(R)userScript3
+file script_settings.req P=$(P)$(R)userScript4
+file script_settings.req P=$(P)$(R)userScript5
+file script_settings.req P=$(P)$(R)userScript6
+file script_settings.req P=$(P)$(R)userScript7
+file script_settings.req P=$(P)$(R)userScript8
+file script_settings.req P=$(P)$(R)userScript9
+file script_settings.req P=$(P)$(R)userScript0
+
+$(P)$(R)userScript1.CODE
+$(P)$(R)userScript2.CODE
+$(P)$(R)userScript3.CODE
+$(P)$(R)userScript4.CODE
+$(P)$(R)userScript5.CODE
+$(P)$(R)userScript6.CODE
+$(P)$(R)userScript7.CODE
+$(P)$(R)userScript8.CODE
+$(P)$(R)userScript9.CODE
+$(P)$(R)userScript0.CODE
