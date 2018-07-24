@@ -59,12 +59,11 @@ lua_SRCS += lepicslib.cpp
 lua_SRCS += luaShell.cpp
 
 ifeq ($(BASE_3_15),YES)
-ifeq ($(EPICS_REVISION),5)
+#ifeq ($(EPICS_MODIFICATION),6)
     lua_SRCS += liocshlib.cpp
-    
     USR_CFLAGS += -DLUA_COMPAT_IOCSH
     USR_CXXFLAGS += -DLUA_COMPAT_IOCSH
-endif
+#endif
 endif
 
 ifdef BASE_3_16
