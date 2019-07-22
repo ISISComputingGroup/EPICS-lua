@@ -57,20 +57,14 @@ lua_SRCS += lzio.c
 lua_SRCS += lasynlib.cpp
 lua_SRCS += lepicslib.cpp
 lua_SRCS += luaShell.cpp
+lua_SRCS += liocshlib.cpp
 
-ifeq ($(BASE_3_15),YES)
-#ifeq ($(EPICS_MODIFICATION),6)
-    lua_SRCS += liocshlib.cpp
-    USR_CFLAGS += -DLUA_COMPAT_IOCSH
-    USR_CXXFLAGS += -DLUA_COMPAT_IOCSH
-#endif
-endif
+USR_CFLAGS += -DLUA_COMPAT_IOCSH -DLUA_CORE 
+USR_CXXFLAGS += -DLUA_COMPAT_IOCSH -DLUA_CORE
 
-ifdef BASE_3_16
-    lua_SRCS += liocshlib.cpp
-    
-    USR_CFLAGS += -DLUA_COMPAT_IOCSH
-    USR_CXXFLAGS += -DLUA_COMPAT_IOCSH
+ifeq ($(SHARED_LIBRARIES),YES)
+USR_CFLAGS_WIN32 += -DLUA_BUILD_AS_DLL
+USR_CXXFLAGS_WIN32 += -DLUA_BUILD_AS_DLL
 endif
 
 lua_SRCS += luascriptRecord.cpp
