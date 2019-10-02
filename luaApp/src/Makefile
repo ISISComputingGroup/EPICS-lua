@@ -5,21 +5,25 @@ include $(TOP)/configure/CONFIG
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 #=============================
 
-SRC_DIRS += ../core
+USR_CPPFLAGS += -DUSE_TYPED_RSET
+
+
+LIBRARY_IOC += lua
 
 DBD += luaSupport.dbd
 
-DBDINC += luascriptRecord.dbd
 
+INC += luaEpics.h
+lua_SRCS += luaEpics.cpp
+
+
+# Build core lua language
+SRC_DIRS += $(TOP)/luaApp/src/core
 INC += lua.h
 INC += lualib.h
 INC += lauxlib.h
 INC += luaconf.h
-INC += luaEpics.h
-INC += luaShell.h
-INC += devUtil.h
 
-LIBRARY_IOC += lua
 lua_SRCS += lapi.c
 lua_SRCS += lauxlib.c
 lua_SRCS += lbaselib.c
@@ -49,34 +53,15 @@ lua_SRCS += lstrlib.c
 lua_SRCS += ltable.c
 lua_SRCS += ltablib.c
 lua_SRCS += ltm.c
-lua_SRCS += lua.c
 lua_SRCS += lundump.c
 lua_SRCS += lutf8lib.c
 lua_SRCS += lvm.c
 lua_SRCS += lzio.c
-lua_SRCS += lasynlib.cpp
-lua_SRCS += lepicslib.cpp
-lua_SRCS += luaShell.cpp
 
-ifeq ($(BASE_3_15),YES)
-ifeq ($(EPICS_REVISION),5)
-    lua_SRCS += liocshlib.cpp
-    
-    USR_CFLAGS += -DLUA_COMPAT_IOCSH
-    USR_CXXFLAGS += -DLUA_COMPAT_IOCSH
-endif
-endif
 
-ifdef BASE_3_16
-    lua_SRCS += liocshlib.cpp
-    
-    USR_CFLAGS += -DLUA_COMPAT_IOCSH
-    USR_CXXFLAGS += -DLUA_COMPAT_IOCSH
-endif
-
-lua_SRCS += luascriptRecord.cpp
-lua_SRCS += luaSoft.c
-lua_SRCS += luaEpics.cpp
+# Include device support
+SRC_DIRS += $(TOP)/luaApp/src/devSupport
+INC += devUtil.h
 
 lua_SRCS += devLuaAi.c
 lua_SRCS += devLuaAo.c
@@ -90,24 +75,74 @@ lua_SRCS += devLuaStringin.c
 lua_SRCS += devLuaStringout.c
 lua_SRCS += devUtil.cpp
 
+
+# Include luascript record
+SRC_DIRS += $(TOP)/luaApp/src/rec
+DBDINC += luascriptRecord.dbd
+
+lua_SRCS += luascriptRecord.cpp
+lua_SRCS += luaSoft.c
+
+
+# Build lua shell
+SRC_DIRS += $(TOP)/luaApp/src/shell
+INC += luaShell.h
+
+lua_SRCS += luaShell.cpp
+
+
+# Build lua libraries
+SRC_DIRS += $(TOP)/luaApp/src/libs
+
+lua_SRCS += lasynlib.cpp
+lua_SRCS += lepicslib.cpp
+
+
 lua_LIBS += asyn
 lua_LIBS += $(EPICS_BASE_IOC_LIBS)
 
-PROD_IOC = scriptioc
 
-DBD += scriptioc.dbd
-scriptioc_DBD += base.dbd
-scriptioc_DBD += drvAsynIPPort.dbd
-scriptioc_DBD += luaSupport.dbd
 
-scriptioc_LIBS += lua
-scriptioc_LIBS += asyn
-scriptioc_LIBS += $(EPICS_BASE_IOC_LIBS)
 
-scriptioc_SRCS += scriptioc_registerRecordDeviceDriver.cpp
+#Build an IOC with the ioc shell
 
-scriptioc_SRCS_DEFAULT += luaMain.cpp
-scriptioc_SRCS_vxWorks += -nil-
+PROD_IOC = testLuaIoc
+
+DBD += testLuaIoc.dbd
+testLuaIoc_DBD += base.dbd
+testLuaIoc_DBD += drvAsynIPPort.dbd
+testLuaIoc_DBD += luaSupport.dbd
+
+testLuaIoc_LIBS += lua
+testLuaIoc_LIBS += asyn
+testLuaIoc_LIBS += $(EPICS_BASE_IOC_LIBS)
+
+testLuaIoc_SRCS += testLuaIoc_registerRecordDeviceDriver.cpp
+
+testLuaIoc_SRCS_DEFAULT += luaMain.cpp
+testLuaIoc_SRCS_vxWorks += -nil-
+
+
+
+#And build an IOC with the luashell
+
+PROD_IOC += testLuaShell
+
+DBD += testLuaShell.dbd
+testLuaShell_DBD += base.dbd
+testLuaShell_DBD += drvAsynIPPort.dbd
+testLuaShell_DBD += luaSupport.dbd
+
+testLuaShell_LIBS += lua
+testLuaShell_LIBS += asyn
+testLuaShell_LIBS += $(EPICS_BASE_IOC_LIBS)
+
+testLuaShell_SRCS += testLuaShell_registerRecordDeviceDriver.cpp
+
+testLuaShell_SRCS_DEFAULT += luashMain.cpp
+testLuaShell_SRCS_vxWorks += -nil-
+
+
 
 #===========================
 

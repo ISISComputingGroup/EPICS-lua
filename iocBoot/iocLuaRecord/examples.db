@@ -1,0 +1,121 @@
+record(luascript, "$(P)$(Q)state_machine")
+{	
+	field(INAA, "$(P)$(Q)aaval.VAL")
+	field(INBB, "$(P)$(Q)bbval.VAL")
+	field(INCC, "$(P)$(Q)ccval.VAL")
+	field(INDD, "$(P)$(Q)ddval.VAL")
+	field(INEE, "$(P)$(Q)eeval.VAL")
+	field(INFF, "$(P)$(Q)ffval.VAL")
+	field(INGG, "$(P)$(Q)ggval.VAL")
+	field(INHH, "$(P)$(Q)hhval.VAL")
+	field(INII, "$(P)$(Q)iival.VAL")
+	field(INJJ, "$(P)$(Q)jjval.VAL")
+	
+	field(PREC, 1)
+	
+	field(PINI, 1)
+	
+	field(CODE, "@examples.lua state_demo()")
+}
+
+record(luascript, "$(P)$(Q)pattern_match")
+{	
+	field(INAA, "$(P)$(Q)aaval.VAL")
+	field(INBB, "$(P)$(Q)bbval.VAL")
+	field(INCC, "$(P)$(Q)ccval.VAL")
+	field(INDD, "$(P)$(Q)ddval.VAL")
+	field(INEE, "$(P)$(Q)eeval.VAL")
+	field(INFF, "$(P)$(Q)ffval.VAL")
+	field(INGG, "$(P)$(Q)ggval.VAL")
+	field(INHH, "$(P)$(Q)hhval.VAL")
+	field(INII, "$(P)$(Q)iival.VAL")
+	field(INJJ, "$(P)$(Q)jjval.VAL")
+	
+	field(PREC, 1)
+	
+	field(PINI, 1)
+	
+	field(CODE, "@examples.lua pattern_demo('%d+')")
+}
+
+record(ai, "$(P)$(Q)aval")
+{
+	field(VAL, 1)
+}
+record(ai, "$(P)$(Q)bval")
+{
+	field(VAL, 2)
+}
+record(ai, "$(P)$(Q)cval")
+{
+	field(VAL, 3)
+}
+record(ai, "$(P)$(Q)dval")
+{
+	field(VAL, 4)
+}
+record(ai, "$(P)$(Q)eval")
+{
+	field(VAL, 5)
+}
+record(ai, "$(P)$(Q)fval")
+{
+	field(VAL, 6)
+}
+record(ai, "$(P)$(Q)gval")
+{
+	field(VAL, 7)
+}
+record(ai, "$(P)$(Q)hval")
+{
+	field(VAL, 8)
+}
+record(ai, "$(P)$(Q)ival")
+{
+	field(VAL, 42)
+}
+record(ai, "$(P)$(Q)jval")
+{
+	field(VAL, 0)
+}
+
+record(stringout, "$(P)$(Q)aaval")
+{
+	field(VAL, "Hello")
+}
+record(stringout, "$(P)$(Q)bbval")
+{
+	field(VAL, "World")
+}
+record(stringout, "$(P)$(Q)ccval")
+{
+	field(VAL, "123ABC")
+}
+record(stringout, "$(P)$(Q)ddval")
+{
+	field(VAL, "A = ")
+}
+record(stringout, "$(P)$(Q)eeval")
+{
+	field(VAL, "return DD .. A")
+}
+record(stringout, "$(P)$(Q)ffval")
+{
+	field(VAL, "VOLTS?4.5,2.7,3.0")
+}
+record(stringout, "$(P)$(Q)ggval")
+{
+	field(VAL, "")
+}
+record(stringout, "$(P)$(Q)hhval")
+{
+	field(VAL, "")
+}
+record(stringout, "$(P)$(Q)iival")
+{
+	field(VAL, "")
+}
+record(stringout, "$(P)$(Q)jjval")
+{
+	field(VAL, "")
+}
