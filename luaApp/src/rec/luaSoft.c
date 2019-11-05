@@ -163,8 +163,8 @@ static long write_Script(luascriptRecord* record)
 	struct link* out = &record->out;
 
 	if (devLuaSoftDebug)    { printf("write_Script: pact=%d\n", record->pact); }
-		
-	if (record->pact)    { return 0; } 
+	
+	if (record->pact)    { return 0; }
 	
 	if ((out->type == CA_LINK) && (record->wait))
 	{
