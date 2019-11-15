@@ -5,7 +5,7 @@ include $(TOP)/configure/CONFIG
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 #=============================
 
-USR_CPPFLAGS += -DUSE_TYPED_RSET
+USR_CPPFLAGS += -DUSE_TYPED_RSET -DLUA_CORE
 
 
 LIBRARY_IOC += lua

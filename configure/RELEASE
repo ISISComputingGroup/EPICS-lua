@@ -6,7 +6,7 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 
 SUPPORT=/home/oxygen40/KLANG/Epics/synApps_7_0_2/support
 
-ASYN=$(SUPPORT)/asyn-R4-33
+ASYN=$(SUPPORT)/asyn/master
 
 # EPICS_BASE usually appears last so other apps can override stuff:
 EPICS_BASE=/home/oxygen/KLANG/Epics/base-7.0.2.1
@@ -16,3 +16,6 @@ EPICS_BASE=/home/oxygen/KLANG/Epics/base-7.0.2.1
 -include $(TOP)/../RELEASE.local
 -include $(TOP)/../RELEASE.$(EPICS_HOST_ARCH).local
 -include $(TOP)/configure/RELEASE.local
+
+include $(TOP)/../../../ISIS_CONFIG
+-include $(TOP)/../../../ISIS_CONFIG.$(EPICS_HOST_ARCH)
