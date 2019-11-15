@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdio>
+#include <ctype.h>
 #include <cstdlib>
 #include <string.h>
 
@@ -32,7 +33,6 @@
 
 static lua_State *globalL = NULL;
 static const char *progname = LUA_PROGNAME;
-
 
 static lua_State* shell_state = NULL;
 
@@ -194,8 +194,8 @@ static int multiline (lua_State *L, const char* prompt, void* readlineContext)
 	for (;;)  /* repeat until gets a complete statement */
 	{
 		size_t len;
-		const char *line = lua_tolstring(L, 1, &len);  /* get what it has */
-		int status = luaL_loadbuffer(L, line, len, "=stdin");  /* try it */
+		const char *buffer = lua_tolstring(L, 1, &len);  /* get what it has */
+		int status = luaL_loadbuffer(L, buffer, len, "=stdin");  /* try it */
 
 		/* cannot or should not try to add continuation line */
 		if (!incomplete(L, status))    { return status; }
@@ -203,9 +203,13 @@ static int multiline (lua_State *L, const char* prompt, void* readlineContext)
 		const char* raw = epicsReadline(subprompt, readlineContext);
 
 		if (!raw)       { return status; }
+		
+		std::string line(raw);
+		while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
+		
 		if (!prompt)    { printf("%s\n", raw); }
 
-		lua_pushstring(L, raw);
+		lua_pushstring(L, line.c_str());
 		lua_pushliteral(L, "\n");  /* add newline... */
 		lua_insert(L, -2);  /* ...between the two lines */
 		lua_concat(L, 3);  /* join them */
@@ -247,25 +251,41 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 		lua_settop(state, 0);
 
 		const char* raw = epicsReadline(prompt, readlineContext);
-
+		
 		if (raw == NULL)                 { return; }
-		if (strcmp(raw, "exit") == 0)    { return; }
+		
+		std::string line(raw);
+		
+		// Eliminate leading white space
+		while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
+		
+		if (line == "exit")    { return; }
 
-		if (raw[0] == '<')
+		if (line[0] == '<')
 		{
-			std::string line(raw);
-
 			// Get rid of < character
 			line.erase(0,1);
 
 			// Get rid of whitespace
-			line.erase(0, line.find_first_not_of(" 	"));
+			while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
 
 			luashBody(state, line.c_str());
 			continue;
 		}
+		
+		if (line[0] == '#')
+		{
+			lua_getglobal(state, "enableHashComments");
+			const char* yn = lua_tostring(state, -1);
+			lua_pop(state, 1);
+			if (yn && std::string(yn) == "YES")
+			{
+				if (prompt == NULL)    { printf("%s\n", raw); }
+				continue;
+			}
+		}
 
-		lua_pushstring(state, raw);
+		lua_pushstring(state, line.c_str());
 
 		if (prompt == NULL)    { printf("%s\n", raw); }
 
@@ -380,6 +400,17 @@ static void luashCallFunc(const iocshArgBuf* args)
 	luashBegin(args[0].sval, args[1].sval);
 }
 
+static const iocshArg luaCmdCmdArg0 = { "lua script", iocshArgString};
+static const iocshArg luaCmdCmdArg1 = { "macros", iocshArgString};
+static const iocshArg *luaCmdCmdArgs[2] = {&luaCmdCmdArg0, &luaCmdCmdArg1};
+static const iocshFuncDef luaCmdFuncDef = {"luaCmd", 2, luaCmdCmdArgs};
+
+
+static void luaCmdCallFunc(const iocshArgBuf* args)
+{
+	luaCmd(args[0].sval, args[1].sval);
+}
+
 static const iocshArg spawnCmdArg0 = { "lua script", iocshArgString};
 static const iocshArg spawnCmdArg1 = { "macros", iocshArgString};
 static const iocshArg *spawnCmdArgs[2] = {&spawnCmdArg0, &spawnCmdArg1};
@@ -406,6 +437,7 @@ epicsShareFunc int epicsShareAPI luashBegin(const char* pathname, const char* ma
 	
 	lua_getglobal(shell_state, "_G");
 	luaL_setmetatable(shell_state, "iocsh_meta");
+	lua_pop(shell_state, 1);
 
 	lua_pushlightuserdata(shell_state, *iocshPpdbbase);
 	lua_setglobal(shell_state, "pdbbase");
@@ -430,6 +462,33 @@ epicsShareFunc int epicsShareAPI luashBegin(const char* pathname, const char* ma
 epicsShareFunc int epicsShareAPI luash(const char* pathname)
 {
 	return luashBegin(pathname, NULL);
+}
+
+epicsShareFunc int epicsShareAPI luaCmd(const char* command, const char* macros)
+{
+	if (! command)    { return -1; }
+	
+	lua_State* state = luaCreateState();
+	
+	lua_getglobal(state, "_G");
+	luaL_setmetatable(state, "iocsh_meta");
+	lua_pop(state, 1);
+	
+	if (macros)
+	{
+		luaLoadMacros(state, macros);
+	}
+	
+	int status = luaL_loadbuffer(state, command, strlen(command), "=stdin");
+	
+	if (status == LUA_OK)     { status = docall(state, 0, LUA_MULTRET); }
+
+	if (status == LUA_OK)     { l_print(state); }
+	else                      { report(state, status); }
+	
+	lua_close(state);
+	
+	return 0;
 }
 
 epicsShareFunc int epicsShareAPI luaSpawn(const char* filename, const char* macros)
@@ -476,6 +535,7 @@ static void luashRegister(void)
 {
 	iocshRegister(&luashFuncDef, luashCallFunc);
 	iocshRegister(&spawnFuncDef, spawnCallFunc);
+	iocshRegister(&luaCmdFuncDef, luaCmdCallFunc);
 }
 
 epicsExportRegistrar(luashRegister);
