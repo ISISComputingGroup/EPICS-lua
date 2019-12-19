@@ -283,52 +283,8 @@ static int l_call(lua_State* state)
 
 static bool parseHelp(const char* func_name)
 {
-	FILE* prev = epicsGetThreadStdout();
-	FILE* temp = tmpfile();
-	
-	epicsSetThreadStdout(temp);
-	iocshCmd("help()");
-	epicsSetThreadStdout(prev);
-	
-	long size = ftell(temp);
-	rewind(temp);
-	char* buffer = (char*) malloc(sizeof(char) * size);
-	
-	fread(buffer, 1, size, temp);
-	std::stringstream help_str;
-	
-	help_str.str(buffer);
-	
-	fclose(temp);
-	
-	std::string line;
-	std::string element;
-
-	int skipped_first_line = 0;
-	
-	while (std::getline(help_str, line, '\n'))
-	{
-		if (! skipped_first_line)
-		{
-			skipped_first_line = 1;
-			continue;
-		}
-		
-		std::stringstream check_line;
-		check_line.str(line);
-		
-		while (std::getline(check_line, element, ' '))
-		{
-			if(! element.empty() && element == func_name)
-			{
-				return true;
-			}
-		}
-	}
-			
-	return false;		
+    return (iocshFindCommand(func_name) != NULL ? true : false);
 }
-
 
 static int l_iocindex(lua_State* state)
 {
