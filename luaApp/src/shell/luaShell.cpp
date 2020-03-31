@@ -261,7 +261,7 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 		
 		if (line == "exit")    { return; }
 
-		if (line[0] == '<')
+		if (line.length() > 0 && line[0] == '<')
 		{
 			// Get rid of < character
 			line.erase(0,1);
@@ -273,7 +273,7 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 			continue;
 		}
 		
-		if (line[0] == '#')
+		if (line.length() > 0 && line[0] == '#')
 		{
 			lua_getglobal(state, "enableHashComments");
 			const char* yn = lua_tostring(state, -1);
