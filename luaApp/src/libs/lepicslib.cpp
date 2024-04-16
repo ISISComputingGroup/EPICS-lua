@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <epicsThread.h>
 #include <epicsExport.h>
-#include "luaEpics.h"
+#include "lepicslib.h"
 
-static int epics_get(lua_State* state, const char* pv_name)
+static int epics_get(lua_State* state, const char* pv_name, double timeout)
 {
 	if (pv_name == NULL)    { return 0; }
 
@@ -35,7 +35,7 @@ static int epics_get(lua_State* state, const char* pv_name)
 			break;
 	}
 
-	ca_pend_io(0.1);
+	status = ca_pend_io(timeout);
 	SEVCHK (status, NULL);
 
 	switch (ca_field_type(id))
@@ -49,6 +49,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 
 			status = ca_get(DBR_TIME_STRING, id, &val);
 
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
+
 			lua_pushstring(state, val.value);
 			break;
 		}
@@ -58,6 +64,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 			struct dbr_time_enum val;
 
 			status = ca_get(DBR_TIME_ENUM, id, &val);
+
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
 
 			lua_pushnumber(state, val.value);
 			break;
@@ -69,6 +81,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 
 			status = ca_get(DBR_TIME_ENUM, id, &val);
 
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
+
 			lua_pushnumber(state, val.value);
 			break;
 		}
@@ -78,6 +96,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 			struct dbr_time_short val;
 
 			status = ca_get(DBR_TIME_SHORT, id, &val);
+
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
 
 			lua_pushnumber(state, val.value);
 			break;
@@ -89,6 +113,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 
 			status = ca_get(DBR_TIME_LONG, id, &val);
 
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
+
 			lua_pushnumber(state, val.value);
 			break;
 		}
@@ -98,6 +128,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 			struct dbr_time_float val;
 
 			status = ca_get(DBR_TIME_FLOAT, id, &val);
+
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
 
 			lua_pushnumber(state, val.value);
 			break;
@@ -109,6 +145,12 @@ static int epics_get(lua_State* state, const char* pv_name)
 
 			status = ca_get(DBR_TIME_DOUBLE, id, &val);
 
+			SEVCHK(status, NULL);
+
+			status = ca_pend_io(timeout);
+
+			if (status == ECA_TIMEOUT) { return 0; }
+
 			lua_pushnumber(state, val.value);
 			break;
 		}
@@ -118,8 +160,6 @@ static int epics_get(lua_State* state, const char* pv_name)
 	}
 
 	SEVCHK(status, NULL);
-
-	ca_pend_io(0.1);
 
 	ca_clear_channel(id);
 
@@ -210,9 +250,14 @@ static int epics_put(lua_State* state, const char* pv_name, int offset)
 
 static int l_caget(lua_State* state)
 {
-	const char* pv_name = lua_tostring(state, 1);
+	int num_ops = lua_gettop(state);
 
-	return epics_get(state, pv_name);
+	const char* pv_name = lua_tostring(state, 1);
+	double timeout = 1.0;
+
+	if (num_ops == 2)    { timeout = luaL_checknumber(state, 2); }
+
+	return epics_get(state, pv_name, timeout);
 }
 
 static int l_caput(lua_State* state)
@@ -224,6 +269,8 @@ static int l_caput(lua_State* state)
 
 static int l_epicssleep(lua_State* state)
 {
+	printf("This function is now deprecated. Use osi.sleep instead\n");
+
 	double seconds = lua_tonumber(state, 1);
 
 	epicsThreadSleep(seconds);
@@ -243,7 +290,7 @@ static int l_pvgetval(lua_State* state)
 	full_name.append(".");
 	full_name.append(field_name);
 
-	return epics_get(state, full_name.c_str());
+	return epics_get(state, full_name.c_str(), 1.0);
 }
 
 static int l_pvsetval(lua_State* state)
@@ -317,15 +364,15 @@ static int l_createpv(lua_State* state)
 
 int luaopen_epics (lua_State *L)
 {
-	static const luaL_Reg mylib[] = {
-		{"get", l_caget},
-		{"put", l_caput},
-		{"sleep", l_epicssleep},
-		{"pv", l_createpv},
-		{NULL, NULL}  /* sentinel */
-	};
-
-	luaL_newlib(L, mylib);
+	LuaModule epicsmod(L, "epics");
+	
+	epicsmod.fun("get", l_caget);
+	epicsmod.fun("put", l_caput);
+	epicsmod.fun("sleep", l_epicssleep);
+	epicsmod.fun("pv", l_createpv);
+	
+	lua_getglobal(L, "epics");
+	
 	return 1;
 }
 

@@ -1,6 +1,9 @@
 *~
 *.swp
 *BAK.adl
+bin/
+/db/
+dbd/
 html/
 auto_settings.sav*
 auto_positions.sav*
