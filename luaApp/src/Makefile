@@ -7,8 +7,15 @@ include $(TOP)/configure/CONFIG
 
 USR_CPPFLAGS += -DUSE_TYPED_RSET
 
+# GCC Requires this
+ifeq ($(CXX11_SUPPORT), YES)
+  USR_CXXFLAGS_Darwin += -std=c++11
+  USR_CXXFLAGS_Linux += -std=c++11
+  USR_CPPFLAGS += -DCXX11_SUPPORTED
+endif
 
-LIBRARY_IOC += lua
+LIBRARY_IOC_DEFAULT += lua
+LIBRARY_IOC_RTEMS = -nil-
 
 DBD += luaSupport.dbd
 
@@ -59,6 +66,10 @@ lua_SRCS += lvm.c
 lua_SRCS += lzio.c
 
 
+# Include luaaa library
+SRC_DIRS += $(TOP)/luaApp/src/luaaa
+INC += luaaa.hpp
+
 # Include device support
 SRC_DIRS += $(TOP)/luaApp/src/devSupport
 INC += devUtil.h
@@ -91,12 +102,29 @@ INC += luaShell.h
 lua_SRCS += luaShell.cpp
 
 
-# Build lua libraries
-SRC_DIRS += $(TOP)/luaApp/src/libs
+# Build luaPortDriver
+SRC_DIRS += $(TOP)/luaApp/src/portdriver
+INC += luaPortDriver.h
 
+lua_SRCS += luaPortDriver.cpp
+
+# Build lua libraries
+
+SRC_DIRS += $(TOP)/luaApp/src/libs/includes
+
+ifeq ($(CXX11_SUPPORT), YES)
+    SRC_DIRS += $(TOP)/luaApp/src/libs
+else
+    SRC_DIRS += $(TOP)/luaApp/src/libs/basic
+endif
+
+lua_SRCS += losilib.cpp
 lua_SRCS += lasynlib.cpp
 lua_SRCS += lepicslib.cpp
+lua_SRCS += ldatabaselib.cpp
 
+INC += lasynlib.h
+INC += lepicslib.h
 
 lua_LIBS += asyn
 lua_LIBS += $(EPICS_BASE_IOC_LIBS)
@@ -106,10 +134,12 @@ lua_LIBS += $(EPICS_BASE_IOC_LIBS)
 
 #Build an IOC with the ioc shell
 
-PROD_IOC = testLuaIoc
+PROD_IOC_DEFAULT = testLuaIoc
+PROD_IOC_RTEMS = -nil-
 
 DBD += testLuaIoc.dbd
 testLuaIoc_DBD += base.dbd
+testLuaIoc_DBD += asyn.dbd
 testLuaIoc_DBD += drvAsynIPPort.dbd
 testLuaIoc_DBD += luaSupport.dbd
 
@@ -126,10 +156,11 @@ testLuaIoc_SRCS_vxWorks += -nil-
 
 #And build an IOC with the luashell
 
-PROD_IOC += testLuaShell
+PROD_IOC_DEFAULT += testLuaShell
 
 DBD += testLuaShell.dbd
 testLuaShell_DBD += base.dbd
+testLuaShell_DBD += asyn.dbd
 testLuaShell_DBD += drvAsynIPPort.dbd
 testLuaShell_DBD += luaSupport.dbd
 
