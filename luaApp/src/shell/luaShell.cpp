@@ -300,7 +300,7 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 			luashBody(state, line.c_str(), NULL);
 			continue;
 		}
-		
+
 		if (line[0] == '#')
 		{
 			lua_getglobal(state, "LEPICS_HASH_COMMENTS");

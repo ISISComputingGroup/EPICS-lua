@@ -417,6 +417,14 @@ static bool parseHelp(const char* func_name)
     return (iocshFindCommand(func_name) != NULL ? true : false);
 }
 
+
+/*
+ * Replaces the basic index call function within lua in order
+ * to recognize ioc shell functions. Any unknown variable
+ * name is checked against the list of functions registered
+ * in the ioc shell, if it exists, return a function object,
+ * otherwise return Nil as normal.
+ */
 static int l_iocindex(lua_State* state)
 {
 	const char* symbol_name = lua_tostring(state, 2);
