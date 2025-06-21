@@ -6,15 +6,18 @@
 
 #include <epicsThread.h>
 #include <epicsExit.h>
+#include <luaEpics.h>
 #include <luaShell.h>
 
 int main(int argc, char *argv[])
 {
+	lua_State* state = luaNamedState("shell");
+	
     if(argc>=2) {    
-        luash(argv[1]);
+        luash(state, argv[1]);
         epicsThreadSleep(.2);
     }
-    luash(NULL);
+    luash(state, NULL);
 	epicsExit(0);
     return(0);
 }
