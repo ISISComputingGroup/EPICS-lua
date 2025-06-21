@@ -282,14 +282,14 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 
 		std::string line(raw);
 
-		if (line.empty())    { continue; }
-
 		// Eliminate leading white space
 		while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
 
+		if (line.empty())    { continue; }
+
 		if (line == "exit")    { line = "exit()"; }
 
-		if (line.length() > 0 && line[0] == '<')
+		if (line[0] == '<')
 		{
 			// Get rid of < character
 			line.erase(0,1);

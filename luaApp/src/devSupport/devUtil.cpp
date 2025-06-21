@@ -1,5 +1,3 @@
-#include "devUtil.h"
-
 #include <string>
 #include <cstdlib>
 #include <cstring>
@@ -8,6 +6,7 @@
 
 #include <epicsExport.h>
 
+#include "devUtil.h"
 #include "luaEpics.h"
 
 extern "C"

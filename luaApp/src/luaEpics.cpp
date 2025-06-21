@@ -414,62 +414,7 @@ static int l_call(lua_State* state)
  */
 static bool parseHelp(const char* func_name)
 {
-	// If there was an issue with initial tmpfile, attempt retry
-	if (temp_help == NULL)
-	{
-		temp_help = tmpfile();
-
-		/*
-		 * If things still don't work, then default to assuming
-		 * everything is a potential iocsh function
-		 */
-		if (temp_help == NULL) { return true; }
-	}
-
-	FILE* prev = epicsGetThreadStdout();
-
-	epicsSetThreadStdout(temp_help);
-	iocshCmd("help()");
-	epicsSetThreadStdout(prev);
-
-	long size = ftell(temp_help);
-	rewind(temp_help);
-	char* buffer = (char*) malloc(sizeof(char) * size);
-
-	fread(buffer, 1, size, temp_help);
-	std::stringstream help_str;
-
-	help_str.str(buffer);
-	free(buffer);
-
-	rewind(temp_help);
-
-	std::string line;
-	std::string element;
-
-	int skipped_first_line = 0;
-
-	while (std::getline(help_str, line, '\n'))
-	{
-		if (! skipped_first_line)
-		{
-			skipped_first_line = 1;
-			continue;
-		}
-
-		std::stringstream check_line;
-		check_line.str(line);
-
-		while (std::getline(check_line, element, ' '))
-		{
-			if(! element.empty() && element == func_name)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+    return (iocshFindCommand(func_name) != NULL ? true : false);
 }
 
 
