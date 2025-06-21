@@ -13,6 +13,7 @@
 #include <epicsExport.h>
 #include <epicsReadline.h>
 #include <epicsThread.h>
+#include <epicsStdio.h>
 
 #include "luaEpics.h"
 #include "luaShell.h"
@@ -25,6 +26,7 @@
 #define LUA_PROGNAME		"lua"
 #endif
 
+#define LUA_BREAKSHELL 666
 
 #if defined(__vxworks) || defined(vxWorks)
 	#include <symLib.h>
@@ -35,9 +37,10 @@ static lua_State *globalL = NULL;
 static const char *progname = LUA_PROGNAME;
 
 static lua_State* shell_state = NULL;
+static lua_State* default_state = NULL;
 
-static void luashBody(lua_State* state, const char* pathname);
-
+static void luashBody(lua_State* state, const char* pathname, const char* macros);
+static int luashBegin(const char* pathname, const char* macros, lua_State* state);
 
 /*
 ** Hook set by signal function to stop the interpreter.
@@ -96,7 +99,20 @@ static int report (lua_State *L, int status)
 */
 static int msghandler (lua_State *L)
 {
+	/* Unfortunately, we have to use the error system to perform script breaks
+	 * in the shell because of how the chunks are set up. Previous, just checked
+	 * if a line stated "exit", but that doesn't work within conditionals. Could
+	 * use just plain "return", but that wouldn't work on the general command line.
+	 * The current best option is to have "exit()" throw a specialized error that
+	 * we can catch here and trigger the shell to proceede.
+	 */
+	if (lua_type(L, 1) == LUA_TLIGHTUSERDATA && lua_topointer(L, 1) == NULL)
+	{
+		return 1;
+	}
+
 	const char *msg = lua_tostring(L, 1);
+
 	if (msg == NULL)  /* is error object not a string? */
 	{
 		if (luaL_callmeta(L, 1, "__tostring") &&  /* does it have a metamethod */
@@ -203,10 +219,12 @@ static int multiline (lua_State *L, const char* prompt, void* readlineContext)
 		const char* raw = epicsReadline(subprompt, readlineContext);
 
 		if (!raw)       { return status; }
-		
+
 		std::string line(raw);
 		while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
-		
+
+		if (line == "exit")    { line = "exit()"; }
+
 		if (!prompt)    { printf("%s\n", raw); }
 
 		lua_pushstring(L, line.c_str());
@@ -233,13 +251,21 @@ static int docall (lua_State *L, int narg, int nres)
 	signal(SIGINT, SIG_DFL);          /* reset C-signal handler */
 	lua_remove(L, base);              /* remove message handler from the stack */
 
+	if (status == LUA_ERRRUN)
+	{
+		if (lua_type(L, -1) == LUA_TLIGHTUSERDATA && lua_topointer(L, -1) == NULL)
+		{
+			return LUA_BREAKSHELL;
+		}
+	}
+
 	return status;
 }
 
 static void repl(lua_State* state, void* readlineContext, const char* prompt)
 {
 	int status;
-	
+
 	while (true)
 	{
 		/*
@@ -251,17 +277,19 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 		lua_settop(state, 0);
 
 		const char* raw = epicsReadline(prompt, readlineContext);
-		
-		if (raw == NULL)                 { return; }
-		
+
+		if (raw == NULL)     { return; }
+
 		std::string line(raw);
-		
+
 		// Eliminate leading white space
 		while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
-		
-		if (line == "exit")    { return; }
 
-		if (line.length() > 0 && line[0] == '<')
+		if (line.empty())    { continue; }
+
+		if (line == "exit")    { line = "exit()"; }
+
+		if (line[0] == '<')
 		{
 			// Get rid of < character
 			line.erase(0,1);
@@ -269,13 +297,13 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 			// Get rid of whitespace
 			while (line.length() > 0 && isspace(line[0]))    { line.erase(0,1); }
 
-			luashBody(state, line.c_str());
+			luashBody(state, line.c_str(), NULL);
 			continue;
 		}
 		
-		if (line.length() > 0 && line[0] == '#')
+		if (line[0] == '#')
 		{
-			lua_getglobal(state, "enableHashComments");
+			lua_getglobal(state, "LEPICS_HASH_COMMENTS");
 			const char* yn = lua_tostring(state, -1);
 			lua_pop(state, 1);
 			if (yn && std::string(yn) == "YES")
@@ -297,15 +325,18 @@ static void repl(lua_State* state, void* readlineContext, const char* prompt)
 
 		if (status == LUA_OK)     { status = docall(state, 0, LUA_MULTRET); }
 
-		if (status == LUA_OK)     { l_print(state); }
-		else                      { report(state, status); }
+		if (status == LUA_BREAKSHELL)    { return; }
+		if (status == LUA_OK)            { l_print(state); }
+		else                             { report(state, status); }
 	}
 }
 
 
 
-static void luashBody(lua_State* state, const char* pathname)
+static void luashBody(lua_State* state, const char* pathname, const char* macros)
 {
+	if (macros)    { luaLoadMacros(state, macros); }
+
 	int wasOkToBlock;
 
 	const char* prompt = NULL;
@@ -359,33 +390,106 @@ static void luashBody(lua_State* state, const char* pathname)
 	epicsThreadSetOkToBlock( wasOkToBlock);
 	epicsReadlineEnd(readlineContext);
 	lua_settop(state, 0);  /* clear stack */
+
+	if (macros)    { luaPopScope(state); }
 }
 
 void spawn_thread_callback(void* arg)
 {
 	lua_State* state = (lua_State*) arg;
-	
+
 	int status = docall(state, 0, 0);
-	
+
 	if (status != LUA_OK)    { report(state, status); }
-	
+
 	lua_close(state);
 }
 
-static LUA_LIBRARY_LOAD_HOOK_ROUTINE previousLibraryHook=NULL;
-static LUA_FUNCTION_LOAD_HOOK_ROUTINE previousFunctionHook=NULL;
-
-static void newLibraryLoadedHook(const char* library_name, lua_CFunction library_func)
+static int l_execcode(lua_State* state)
 {
-	if (previousLibraryHook)    { previousLibraryHook(library_name, library_func); }
-	
-	luaL_requiref(shell_state, library_name, library_func, 1);
+	lua_settop(state, 1);
+
+	int datatype = lua_type(state, -1);
+
+	const char* str = NULL;
+	const char* in  = NULL;
+	const char* out = NULL;
+
+
+	/* If using named parameters, check for input/in and output/out */
+
+	if (datatype == LUA_TTABLE)
+	{
+		lua_geti(state, -1, 1);
+		if (!lua_isnil(state, -1))    { str = lua_tostring(state, -1); }
+		lua_pop(state, 1);
+
+		lua_getfield(state, -1, "output");
+		if (!lua_isnil(state, -1))    { out = lua_tostring(state, -1); }
+		lua_pop(state, 1);
+
+		lua_getfield(state, -1, "out");
+		if (!lua_isnil(state, -1))    { out = lua_tostring(state, -1); }
+		lua_pop(state, 1);
+
+		lua_getfield(state, -1, "input");
+		if (!lua_isnil(state, -1))    { in = lua_tostring(state, -1); }
+		lua_pop(state, 1);
+
+		lua_getfield(state, -1, "in");
+		if (!lua_isnil(state, -1))    { in = lua_tostring(state, -1); }
+		lua_pop(state, 1);
+	}
+	else if (datatype == LUA_TSTRING)
+	{
+		str = lua_tostring(state, 1);
+	}
+
+
+	/* Output redirects */
+	FILE* new_out = NULL;
+	FILE* old_out = epicsGetThreadStdout();
+
+	if (out)
+	{
+		new_out = fopen(out, "w");
+
+		if (new_out == NULL)
+		{
+			return luaL_error(state, "Error in opening file(%s)\n", new_out);
+		}
+
+		epicsSetThreadStdout(new_out);
+	}
+
+	int status = LUA_OK;
+
+	/* prioritize file input over command definition */
+	if (in)        { luashBody(state, in, NULL); }
+	else if (str)
+	{
+		status = luaL_dostring(state, str);
+	}
+
+	/* Return to previous output */
+	if (out)
+	{
+		epicsSetThreadStdout(old_out);
+		fclose(new_out);
+	}
+
+	if (status != LUA_OK)    { return luaL_error(state, "Error (%d) running string (%s)\n", status, str); }
+
+	return 0;
 }
+
+
+static LUA_FUNCTION_LOAD_HOOK_ROUTINE previousFunctionHook=NULL;
 
 static void newFunctionLoadedHook(const char* function_name, lua_CFunction function)
 {
 	if (previousFunctionHook)    { previousFunctionHook(function_name, function); }
-	
+
 	lua_register(shell_state, function_name, function);
 }
 
@@ -397,7 +501,7 @@ static const iocshFuncDef luashFuncDef = {"luash", 2, luashCmdArgs};
 
 static void luashCallFunc(const iocshArgBuf* args)
 {
-	luashBegin(args[0].sval, args[1].sval);
+	luashBegin(args[0].sval, args[1].sval, NULL);
 }
 
 static const iocshArg luaCmdCmdArg0 = { "lua script", iocshArgString};
@@ -422,112 +526,180 @@ static void spawnCallFunc(const iocshArgBuf* args)
 	luaSpawn(args[0].sval, args[1].sval);
 }
 
-extern "C"
+static void initState(lua_State* state)
 {
+	luaL_getmetatable(state, "iocsh_meta");
+	luaPushScope(state);
 
-epicsShareFunc int epicsShareAPI luashBegin(const char* pathname, const char* macros)
+	lua_newtable(state);
+	lua_setfield(state, LUA_REGISTRYINDEX, "OSI_REDIRECTS_STACK");
+
+	lua_register(state, "exec", l_execcode);
+
+	lua_pushlightuserdata(state, iocshPpdbbase);
+	lua_setglobal(state, "pdbbase");
+}
+
+
+/*
+ * Wrapper around the core shell loop, checks if there is already a shell running
+ * to allow for nested shell calls. Otherwise, creates a new state and loads hooks
+ * in case a dbd file is loaded during operation. After the shell is done running,
+ * clean up the resources.
+ */
+static int luashBegin(const char* pathname, const char* macros, lua_State* state)
 {
+	if (state)
+	{
+		initState(state);
+		shell_state = state;
+	}
+
 	if (shell_state != NULL)
 	{
-		luashBody(shell_state, pathname);
+		luashBody(shell_state, pathname, macros);
 		return 0;
 	}
-	
-	shell_state = luaCreateState();
-	
-	lua_getglobal(shell_state, "_G");
-	luaL_setmetatable(shell_state, "iocsh_meta");
-	lua_pop(shell_state, 1);
 
-	lua_pushlightuserdata(shell_state, *iocshPpdbbase);
-	lua_setglobal(shell_state, "pdbbase");
+	// Make a copy to check after finishing the script, may have changed by then
+	lua_State* check_state = default_state;
 
-	if (macros)    { luaLoadMacros(shell_state, macros); }
+	if (check_state != NULL)
+	{
+		shell_state = default_state;
+	}
+	else
+	{
+		shell_state = luaCreateState();
+		initState(shell_state);
+	}
 
-	previousLibraryHook = luaLoadLibraryHook;
-	previousFunctionHook = luaLoadFunctionHook;
-	
-	luaLoadLibraryHook = newLibraryLoadedHook;
-	luaLoadFunctionHook = newFunctionLoadedHook;
-	
-	luashBody(shell_state, pathname);
-	
-	lua_close(shell_state);
-	
+	luashBody(shell_state, pathname, macros);
+
+	if (check_state == NULL)    { lua_close(shell_state); }
+
 	shell_state = NULL;
 
 	return 0;
 }
 
-epicsShareFunc int epicsShareAPI luash(const char* pathname)
+
+epicsShareFunc int epicsShareAPI luash(lua_State* state, const char* pathname, const char* macros)
 {
-	return luashBegin(pathname, NULL);
+	previousFunctionHook = luaLoadFunctionHook;
+	luaLoadFunctionHook = newFunctionLoadedHook;
+	
+	return luashBegin(pathname, macros, state);
 }
 
-epicsShareFunc int epicsShareAPI luaCmd(const char* command, const char* macros)
+epicsShareFunc int epicsShareAPI luash(lua_State* state, const char* pathname)
+{
+	return luash(state, pathname, NULL);
+}
+
+epicsShareFunc int epicsShareAPI luaCmd(lua_State* state, const char* command, const char* macros)
 {
 	if (! command)    { return -1; }
-	
-	lua_State* state = luaCreateState();
-	
-	lua_getglobal(state, "_G");
-	luaL_setmetatable(state, "iocsh_meta");
-	lua_pop(state, 1);
-	
-	if (macros)
-	{
-		luaLoadMacros(state, macros);
-	}
-	
-	int status = luaL_loadbuffer(state, command, strlen(command), "=stdin");
-	
-	if (status == LUA_OK)     { status = docall(state, 0, LUA_MULTRET); }
 
-	if (status == LUA_OK)     { l_print(state); }
-	else                      { report(state, status); }
-	
-	lua_close(state);
-	
+	lua_State* used_environ;
+
+	if (state)    { used_environ = state; }
+	else          { used_environ = luaCreateState(); }
+
+	luaL_getmetatable(used_environ, "iocsh_meta");
+	luaPushScope(used_environ);
+
+	if (macros)    { luaLoadMacros(used_environ, macros); }
+
+	int status = luaL_loadbuffer(used_environ, command, strlen(command), "=stdin");
+
+	if (status == LUA_OK)     { status = docall(used_environ, 0, LUA_MULTRET); }
+
+	if (status == LUA_OK)     { l_print(used_environ); }
+	else                      { report(used_environ, status); }
+
+	//Pop macro scope
+	if (macros)    { luaPopScope(used_environ); }
+
+	//Pop iocsh_meta scope
+	luaPopScope(used_environ);
+
+	if (!state)    { lua_close(used_environ); }
+
 	return 0;
 }
 
+extern "C"
+{
+
+/*
+ * Epics function to call the shell
+ */
+epicsShareFunc int epicsShareAPI luash(const char* pathname)
+{
+	return luash(NULL, pathname, NULL);
+}
+
+epicsShareFunc int epicsShareAPI luashLoad(const char* pathname, const char* macros)
+{
+	return luash(NULL, pathname, macros);
+}
+
+/*
+ * Epics function for one-liner lua commands
+ */
+epicsShareFunc int epicsShareAPI luaCmd(const char* command, const char* macros)
+{
+	return luaCmd(NULL, command, macros);
+}
+
+/*
+ * Epics function to create a background process and execute a script
+ * in that thread.
+ */
 epicsShareFunc int epicsShareAPI luaSpawn(const char* filename, const char* macros)
 {
 	lua_State* state = luaCreateState();
-	
-	if (macros)
-	{
-		luaLoadMacros(state, macros);
-	}
-	
+
+	if (macros)    { luaLoadMacros(state, macros); }
+
 	std::string temp(filename);
 	std::string found = luaLocateFile(temp);
-	
+
 	if (found.empty())    { return -1; }
-	
+
 	int status = luaL_loadfile(state, found.c_str());
-	
+
 	if (status)
 	{
 		std::string err(lua_tostring(state, -1));
 		lua_pop(state, 1);
-		
+
 		printf("%s\n", err.c_str());
 		return status;
 	}
-	
+
 	std::stringstream temp_stream;
 	std::string threadname;
-	
+
 	temp_stream << "Lua Shell Thread: " << filename << "(" << macros << ")";
 	temp_stream >> threadname;
-	
-	epicsThreadCreate(threadname.c_str(), 
-	                  epicsThreadPriorityLow, 
-	                  epicsThreadGetStackSize(epicsThreadStackMedium), 
+
+	epicsThreadCreate(threadname.c_str(),
+	                  epicsThreadPriorityLow,
+	                  epicsThreadGetStackSize(epicsThreadStackMedium),
 	                  (EPICSTHREADFUNC)::spawn_thread_callback, state);
-					
+
 	return 0;
+}
+
+
+epicsShareFunc void epicsShareAPI luashSetCommonState(const char* name)
+{
+	if (! name)    { default_state = NULL; }
+
+	default_state = luaNamedState(name);
+	initState(default_state);
 }
 
 
